@@ -89,7 +89,7 @@
     .invoice-title {
       font-size: 42px;
       font-weight: 800;
-      color: #90EE90; /* Light Green */
+      color: #ADFF2F; /* Light Green */
       margin: 0 0 5px 0;
       letter-spacing: 2px;
       line-height: 1;
@@ -129,7 +129,7 @@
       margin-bottom: 30px;
     }
     .invoice-table th {
-      background-color: #90EE90; /* Light Green */
+      background-color: #ADFF2F; /* Light Green */
       color: #111; /* Dark text for contrast */
       text-align: left;
       padding: 12px 15px;
@@ -182,7 +182,7 @@
       color: #333;
     }
     .totals-row.grand-total {
-      background-color: #90EE90; /* Light Green */
+      background-color: #ADFF2F; /* Light Green */
       color: #111; /* Dark text for contrast */
       padding: 15px;
       border-radius: 4px;
@@ -493,6 +493,8 @@
               <th class="px-4 py-2 border-b">Property</th>
               <th class="px-4 py-2 border-b">Unit No</th>
               <th class="px-4 py-2 border-b">Billing Date</th>
+              <th class="px-4 py-2 border-b">Meter Reading Previous</th>
+              <th class="px-4 py-2 border-b">Meter Present Reading</th>
               <th class="px-4 py-2 border-b">Consumption</th>
               <th class="px-4 py-2 border-b">Rate</th>
               <th class="px-4 py-2 border-b">Total</th>
@@ -596,7 +598,7 @@
 
   <script>
     // ================= CONFIGURATION =================
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw62gfszXhQ_b1MJqHbzFpQs-ZHPzMJ-Y6pc8-kD17lN1c2bLennxyBBXqXbZeDrS9K/exec';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz_mEnxHFDApvKuuzLT1-Qzi1hfHHyhZOmtfH0KLDLACvfS_y_V9dyIVM85SgWUrIMN/exec';
     const ROOT_FOLDER_ID = '1SLd83WomxtEH3UPuzo3GpSBbUwiaWPHE';
     
     const PROPERTIES = ['ECO 1', 'ECO 2', 'GREEN', 'HOMEY', 'ADI', 'KALAYAAN', 'PLEASANT', 'DREAM', 'PENTHAUZ'];
@@ -646,6 +648,8 @@
               // Strict parsing
               bill.rate = parseFloat(bill.rate) || 0;
               bill.consumption = parseFloat(bill.consumption) || 0;
+              bill.prevReading = parseFloat(bill.prevReading) || 0;
+              bill.presentReading = parseFloat(bill.presentReading) || 0;
               
               // Recalculate total
               bill.total = (bill.consumption * bill.rate) + bill.balance;
@@ -768,7 +772,7 @@
       let pending = 0, generated = 0, sent = 0;
 
       if (!activeTab || !appData[activeTab] || appData[activeTab].length === 0) {
-        spreadsheetBody.innerHTML = `<tr><td colspan="11" class="px-4 py-12 text-center text-slate-400">No data in "${activeTab}" tab.</td></tr>`;
+        spreadsheetBody.innerHTML = `<tr><td colspan="13" class="px-4 py-12 text-center text-slate-400">No data in "${activeTab}" tab.</td></tr>`;
         document.getElementById('countPending').textContent = `0 Pending`;
         document.getElementById('countGenerated').textContent = `0 Generated`;
         document.getElementById('countSent').textContent = `0 Sent`;
@@ -793,7 +797,7 @@
       });
 
       if (filteredBills.length === 0) {
-        spreadsheetBody.innerHTML = `<tr><td colspan="11" class="px-4 py-12 text-center text-slate-400">No bills found matching your search.</td></tr>`;
+        spreadsheetBody.innerHTML = `<tr><td colspan="13" class="px-4 py-12 text-center text-slate-400">No bills found matching your search.</td></tr>`;
       } else {
         filteredBills.forEach((bill) => {
           let badgeClass = 'bg-yellow-100 text-yellow-800';
@@ -852,6 +856,8 @@
             <td class="px-4 py-3 text-slate-600">${bill.property || activeTab}</td>
             <td class="px-4 py-3 text-slate-600">${bill.unitNo || ''}</td>
             <td class="px-4 py-3 text-slate-600">${formatDisplayDate(bill.billingDate)}</td>
+            <td class="px-4 py-3 text-slate-600">${bill.prevReading || 0}</td>
+            <td class="px-4 py-3 text-slate-600">${bill.presentReading || 0}</td>
             <td class="px-4 py-3 text-slate-600">${bill.consumption || 0} cu.m</td>
             <td class="px-4 py-3 text-slate-600">${formatPeso(bill.rate)}</td>
             <td class="px-4 py-3 text-slate-600 font-medium">${formatPeso(bill.total)}</td>
@@ -1465,7 +1471,7 @@
           const targetTab = matchedProperty;
 
           const prevReading = Number(rowKeys['PREVIOUS'] || rowKeys['METER READING PREVIOUS'] || 0);
-          const presentReading = Number(rowKeys['PRESENT'] || rowKeys['METER Present Reading'] || 0);
+          const presentReading = Number(rowKeys['PRESENT'] || rowKeys['METER PRESENT READING'] || rowKeys['METER READING PRESENT'] || 0);
           let consumption = Number(rowKeys['CONSUMPTION'] || 0);
           if (!consumption) consumption = Math.max(0, presentReading - prevReading);
           
