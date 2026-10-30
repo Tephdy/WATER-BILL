@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Water Bill Management System</title>
+  <link rel="icon" type="image/png" href="img/logo.png">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <style>
+    body { background-color: #f1f5f9; height: 100vh; overflow: hidden; }
+    .pdf-page { width: 210mm; height: 297mm; background: #ffffff; margin: 0 auto; padding: 0; box-sizing: border-box; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; overflow: hidden; }
+    .spinner { border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #ffffff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .tab-scroll::-webkit-scrollbar { height: 6px; }
+    .tab-scroll::-webkit-scrollbar-track { background: transparent; }
+    .tab-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .tab-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .office-tab { padding: 8px 16px; font-size: 14px; color: #333; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .office-tab:hover { background-color: #e2e8f0; }
+    .office-tab.active { color: #217346; border-bottom-color: #217346; font-weight: 600; }
+    .ribbon-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #333; transition: background 0.2s; cursor: pointer; }
+    .ribbon-btn:hover { background-color: #e2e8f0; }
+    .ribbon-btn svg { width: 24px; height: 24px; margin-bottom: 2px; }
+    
+    input[type="date"].table-date-input {
+      border: 1px solid transparent;
+      background: transparent;
+      font-size: 12px;
+      color: #475569;
+      padding: 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      outline: none;
+      width: 100%;
+    }
+    input[type="date"].table-date-input:hover {
+      border-color: #cbd5e1;
+      background: #f8fafc;
+    }
+    input[type="date"].table-date-input:focus {
+      border-color: #3b82f6;
+      background: #fff;
+    }
+    input[type="date"].table-date-input:disabled {
+      background: transparent;
+      color: #cbd5e1;
+      cursor: not-allowed;
+    }
+    input[type="date"].table-date-input:disabled:hover {
+      border-color: transparent;
+      background: transparent;
+    }
+
+    /* --- INVOICE TEMPLATE STYLES (LIGHT GREEN THEME) --- */
+    .invoice-container {
+      padding: 40px;
+      background-color: #f4f5f6;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      color: #333;
+    }
+    .invoice-inner {
+      background-color: #ffffff;
+      padding: 40px;
+      height: 100%;
+      box-sizing: border-box;
+    }
+    .invoice-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 50px;
+    }
+    .invoice-brand img {
+      max-height: 80px;
+      max-width: 300px;
+      object-fit: contain;
+    }
+    .invoice-title-section {
+      text-align: right;
+    }
+    .invoice-title {
+      font-size: 42px;
+      font-weight: 800;
+      color: #90EE90; /* Light Green */
+      margin: 0 0 5px 0;
+      letter-spacing: 2px;
+      line-height: 1;
+    }
+    .invoice-date {
+      font-size: 16px;
+      font-weight: bold;
+      color: #111;
+    }
+    .invoice-details-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+    }
+    .invoice-details-left {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #333;
+      width: 45%;
+    }
+    .invoice-details-right {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #333;
+      width: 45%;
+      text-align: left;
+    }
+    .detail-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #111;
+    }
+    /* Table Styles */
+    .invoice-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+    .invoice-table th {
+      background-color: #90EE90; /* Light Green */
+      color: #111; /* Dark text for contrast */
+      text-align: left;
+      padding: 12px 15px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .invoice-table th:first-child { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+    .invoice-table th:last-child { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+    .invoice-table td {
+      padding: 15px;
+      border-bottom: 1px solid #eaeaea;
+      font-size: 13px;
+      vertical-align: top;
+    }
+    .item-name {
+      font-weight: bold;
+      color: #111;
+      margin-bottom: 3px;
+    }
+    .item-desc {
+      color: #777;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    
+    /* Footer / Totals */
+    .invoice-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-top: 20px;
+    }
+    .invoice-notes {
+      width: 50%;
+      font-size: 12px;
+      color: #666;
+      line-height: 1.5;
+    }
+    .invoice-totals {
+      width: 40%;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    .totals-row.grand-total {
+      background-color: #90EE90; /* Light Green */
+      color: #111; /* Dark text for contrast */
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: 10px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body class="p-2 md:p-4 flex flex-col w-full h-screen">
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-slate-900 bg-opacity-70 z-50 hidden flex-col items-center justify-center backdrop-blur-sm">
+    <div class="spinner mb-4"></div>
+    <h2 id="loadingText" class="text-white text-xl font-bold">Syncing Database...</h2>
+    <p class="text-slate-300 mt-2">Communicating with Google Sheets.</p>
+  </div>
+
+  <!-- ============================================================
+       EDIT BILL MODAL (CRUD)
+       ============================================================ -->
+  <div id="editBillModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          Edit Bill
+        </h3>
+        <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+      </div>
+
+      <div class="p-4 overflow-y-auto space-y-3 flex-1">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tenant Name</label>
+          <input type="text" id="editTenantName" class="w-full px-3 py-2 border rounded text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Property</label>
+          <select id="editProperty" class="w-full px-3 py-2 border rounded text-sm bg-white">
+            <option value="ECO 1">ECO 1</option>
+            <option value="ECO 2">ECO 2</option>
+            <option value="GREEN">GREEN</option>
+            <option value="HOMEY">HOMEY</option>
+            <option value="ADI">ADI</option>
+            <option value="KALAYAAN">KALAYAAN</option>
+            <option value="PLEASANT">PLEASANT</option>
+            <option value="DREAM">DREAM</option>
+            <option value="PENTHAUZ">PENTHAUZ</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Unit No</label>
+          <input type="text" id="editUnitNo" class="w-full px-3 py-2 border rounded text-sm">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Meter Reading Previous</label>
+            <input type="number" id="editPrevReading" class="w-full px-3 py-2 border rounded text-sm" step="0.01">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Meter Present Reading</label>
+            <input type="number" id="editPresentReading" class="w-full px-3 py-2 border rounded text-sm" step="0.01">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Consumption (cu.m)</label>
+            <input type="number" id="editConsumption" class="w-full px-3 py-2 border rounded text-sm" step="0.01">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Rate per cu.m</label>
+            <input type="number" id="editRate" class="w-full px-3 py-2 border rounded text-sm" step="0.01" value="0">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Balance</label>
+          <input type="number" id="editBalance" class="w-full px-3 py-2 border rounded text-sm" step="0.01" value="0">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Billing Date</label>
+          <input type="date" id="editBillingDate" class="w-full px-3 py-2 border rounded text-sm">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Status</label>
+            <select id="editStatus" class="w-full px-3 py-2 border rounded text-sm bg-white">
+              <option value="Pending">Pending</option>
+              <option value="Generated">Generated</option>
+              <option value="Sent">Sent</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Date Sent</label>
+            <input type="date" id="editDateSent" class="w-full px-3 py-2 border rounded text-sm">
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex gap-2 justify-end">
+        <button onclick="closeEditModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold text-sm">Cancel</button>
+        <button onclick="saveBillEdit()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ribbon UI -->
+  <div class="w-full bg-white shadow-sm border border-slate-300 rounded-t-lg mb-2 overflow-hidden shrink-0">
+    <div class="bg-[#217346] text-white px-4 py-1 flex justify-between items-center text-sm">
+      <div class="flex items-center gap-4">
+        <span class="font-bold">Water Bill Management System</span>
+        <span class="opacity-75 text-xs">Connected to Google Sheets</span>
+      </div>
+    </div>
+    <div class="flex border-b border-slate-200 bg-slate-50 px-2 pt-1" id="ribbonTabs">
+      <div class="office-tab active" data-target="home">Home</div>
+      <div class="office-tab" data-target="insert">Insert</div>
+      <div class="office-tab" data-target="data">Data</div>
+      <div class="office-tab" data-target="view">View</div>
+    </div>
+
+    <div class="p-2 bg-white min-h-[80px] flex items-center border-b border-slate-300">
+      <!-- Home Ribbon -->
+      <div class="ribbon-content flex gap-4 w-full" id="ribbon-home">
+        <div class="flex flex-col items-center border-r border-slate-200 pr-4">
+          <div class="flex gap-2">
+            <label class="ribbon-btn">
+              <svg class="text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+              Import Excel
+              <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden">
+            </label>
+          </div>
+          <span class="text-[10px] text-slate-400 mt-1">Data Source</span>
+        </div>
+        
+        <div class="flex flex-col items-center border-r border-slate-200 pr-4">
+          <div class="flex gap-2">
+            <button id="batchGenerateBtn" class="ribbon-btn">
+              <svg class="text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              Generate All
+            </button>
+            <button id="batchDownloadZipBtn" class="ribbon-btn">
+              <svg class="text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              Download ZIP
+            </button>
+          </div>
+          <span class="text-[10px] text-slate-400 mt-1">Batch Actions</span>
+        </div>
+
+        <div class="flex flex-col items-center">
+          <div class="flex gap-2">
+            <button id="exportDriveBtn" class="ribbon-btn">
+              <svg class="text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+              Export to Drive
+            </button>
+          </div>
+          <span class="text-[10px] text-slate-400 mt-1">Cloud</span>
+        </div>
+      </div>
+
+      <!-- Insert Ribbon -->
+      <div class="ribbon-content hidden flex gap-4 w-full" id="ribbon-insert">
+        <div class="flex flex-col items-center border-r border-slate-200 pr-4">
+          <div class="flex gap-2">
+            <button onclick="openAddModal()" class="ribbon-btn">
+              <svg class="text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+              Add Bill
+            </button>
+          </div>
+          <span class="text-[10px] text-slate-400 mt-1">Manual Entry</span>
+        </div>
+      </div>
+
+      <!-- Data Ribbon -->
+      <div class="ribbon-content hidden flex gap-4 w-full" id="ribbon-data">
+        <div class="flex flex-col items-center border-r border-slate-200 pr-4">
+          <div class="flex gap-2">
+            <button id="clearCurrentTabBtn" class="ribbon-btn">
+              <svg class="text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              Clear Tab
+            </button>
+          </div>
+          <span class="text-[10px] text-slate-400 mt-1">Data Management</span>
+        </div>
+      </div>
+
+      <!-- View Ribbon -->
+      <div class="ribbon-content hidden flex gap-4 w-full" id="ribbon-view">
+        <div class="flex flex-col justify-center text-xs text-slate-500 px-4 w-full text-center">
+          Data is synced with Google Sheets. Drag and drop the tabs below to reorder them visually.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sheet Selection Area -->
+  <div id="sheetSelectionArea" class="hidden w-full mb-2 bg-yellow-50 border border-yellow-200 p-2 rounded-lg flex items-center gap-4 shrink-0">
+    <label class="text-sm font-bold text-yellow-800">Select Sheet to Import:</label>
+    <select id="sheetSelect" class="px-3 py-1 border border-yellow-300 rounded text-sm bg-white">
+    </select>
+    <button id="confirmLoadSheetBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-bold px-4 py-1 rounded">Load</button>
+  </div>
+
+  <!-- Main Content -->
+  <div class="w-full flex flex-col lg:flex-row gap-2 items-stretch flex-1 min-h-0">
+    
+    <!-- Left Panel: Add Single Bill -->
+    <div class="w-full lg:w-80 bg-white p-4 rounded-2xl shadow-xl border border-slate-200 flex flex-col h-full shrink-0">
+      <h2 class="text-lg font-bold mb-2 text-slate-800 border-b pb-2 shrink-0 flex items-center gap-2">
+        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+        Add Single Bill
+      </h2>
+      
+      <div class="overflow-y-auto flex-1 pr-1 space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tenant Name</label>
+          <input type="text" id="inputTenant" placeholder="Tenant Name" class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Property</label>
+          <select id="inputProperty" class="w-full px-3 py-2 border rounded text-sm bg-white">
+            <option value="ECO 1">ECO 1</option>
+            <option value="ECO 2">ECO 2</option>
+            <option value="GREEN">GREEN</option>
+            <option value="HOMEY">HOMEY</option>
+            <option value="ADI">ADI</option>
+            <option value="KALAYAAN">KALAYAAN</option>
+            <option value="PLEASANT">PLEASANT</option>
+            <option value="DREAM">DREAM</option>
+            <option value="PENTHAUZ">PENTHAUZ</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Unit No</label>
+          <input type="text" id="inputUnitNo" placeholder="e.g. 5-1" class="w-full px-3 py-2 border rounded text-sm">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Meter Reading Previous</label>
+            <input type="number" id="inputPrevReading" class="w-full px-3 py-2 border rounded text-sm" step="0.01" value="0">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Meter Present Reading</label>
+            <input type="number" id="inputPresentReading" class="w-full px-3 py-2 border rounded text-sm" step="0.01" value="0">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Consumption (cu.m)</label>
+            <input type="number" id="inputConsumption" class="w-full px-3 py-2 border rounded text-sm" step="0.01" value="1">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Rate per cu.m</label>
+            <input type="number" id="inputRate" class="w-full px-3 py-2 border rounded text-sm" step="0.01" value="0">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Balance</label>
+          <input type="number" id="inputBalance" class="w-full px-3 py-2 border rounded text-sm" step="0.01" value="0">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Billing Date</label>
+          <input type="date" id="inputBillingDate" class="w-full px-3 py-2 border rounded text-sm">
+        </div>
+      </div>
+      
+      <div class="shrink-0 mt-2 pt-2 border-t">
+        <button id="addBillFormBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg text-sm shadow-sm">Add to Current Tab</button>
+      </div>
+    </div>
+
+    <!-- Right Panel: Data Table -->
+    <div class="w-full lg:flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col h-full flex-1 min-h-0">
+      
+      <div class="p-4 border-b border-slate-200 bg-slate-50 rounded-t-2xl flex flex-col gap-2 shrink-0">
+        <div class="flex flex-col items-center justify-center text-center gap-1">
+          <div class="flex flex-row gap-2 mt-1">
+            <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full" id="countPending">0 Pending</span>
+            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full" id="countGenerated">0 Generated</span>
+            <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full" id="countSent">0 Sent</span>
+          </div>
+        </div>
+
+        <div id="tabsContainer" class="flex items-center gap-2 overflow-x-auto tab-scroll pb-1 mt-2">
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2 mt-1">
+          <div class="flex-1 relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <input type="text" id="searchInput" placeholder="Search Name or Unit..." class="w-full pl-9 pr-4 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+          </div>
+          
+          <select id="statusFilter" class="w-full sm:w-36 px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+            <option value="ALL">All Statuses</option>
+            <option value="Pending">Pending Only</option>
+            <option value="Generated">Generated Only</option>
+            <option value="Sent">Sent Only</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="overflow-auto flex-1 p-0 min-h-0">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs font-bold sticky top-0 shadow-sm z-10">
+            <tr>
+              <th class="px-4 py-2 border-b">Tenant Name</th>
+              <th class="px-4 py-2 border-b">Property</th>
+              <th class="px-4 py-2 border-b">Unit No</th>
+              <th class="px-4 py-2 border-b">Billing Date</th>
+              <th class="px-4 py-2 border-b">Consumption</th>
+              <th class="px-4 py-2 border-b">Rate</th>
+              <th class="px-4 py-2 border-b">Total</th>
+              <th class="px-4 py-2 border-b">Status</th>
+              <th class="px-4 py-2 border-b text-center">PDF</th>
+              <th class="px-4 py-2 border-b text-right">Actions</th>
+              <th class="px-4 py-2 border-b text-center">Date Sent</th>
+            </tr>
+          </thead>
+          <tbody id="spreadsheetBody" class="divide-y divide-slate-100 text-sm">
+          </tbody>
+        </table>
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- Hidden PDF Template -->
+  <div id="pdf-template" style="position: absolute; top: -9999px; left: -9999px; opacity: 0; pointer-events: none;">
+    <div id="bill-page" class="pdf-page relative">
+      <div class="invoice-container">
+        <div class="invoice-inner">
+          
+          <!-- Header: Logo Left, Invoice Title & Date Right -->
+          <div class="invoice-header">
+            <div class="invoice-brand">
+              <img src="img/header.png" alt="Eve's Residences" onerror="this.style.display='none'">
+            </div>
+            <div class="invoice-title-section">
+              <h1 class="invoice-title">INVOICE</h1>
+              <div class="invoice-date" id="outDate"></div>
+            </div>
+          </div>
+
+          <!-- Details -->
+          <div class="invoice-details-row">
+            <div class="invoice-details-left">
+              <div class="detail-title">Office Address</div>
+              <div>No. 69 Matahimik St. Brgy. Sto Domingo<br>Cainta, Rizal</div>
+              <div style="margin-top: 10px;">
+                <strong>Facebook:</strong> Eve's Residences
+              </div>
+            </div>
+            <div class="invoice-details-right">
+              <div class="detail-title">To :</div>
+              <div style="font-weight: bold; text-transform: uppercase;" id="outTenant"></div>
+              <div>Property: <span id="outProperty" style="text-transform: uppercase;"></span></div>
+              <div>Unit No: <span id="outUnitNo" style="text-transform: uppercase;"></span></div>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <table class="invoice-table">
+            <thead>
+              <tr>
+                <th style="width: 40%;">Items Description</th>
+                <th style="width: 20%;">Meter Present Reading</th>
+                <th style="width: 15%; text-align: center;">Consumption (cu.m)</th>
+                <th style="width: 25%; text-align: right;">Rate per cu.m</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="item-name">Water Consumption</div>
+                  <div class="item-desc">Previous Reading: <span id="outPrevReading"></span></div>
+                </td>
+                <td id="outPresentReading"></td>
+                <td class="text-center" id="outConsumption"></td>
+                <td class="text-right" id="outRate"></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Footer -->
+          <div class="invoice-footer">
+            <div class="invoice-notes">
+              <div style="font-weight: bold; color: #111; margin-bottom: 5px;">Note:</div>
+              <div>Please settle your water bill on or before the due date. If you have any questions, please contact us via our Facebook page.</div>
+            </div>
+            <div class="invoice-totals">
+              <div class="totals-row">
+                <span>SUBTOTAL :</span>
+                <span id="outSubtotalBottom"></span>
+              </div>
+              <div class="totals-row">
+                <span>BALANCE :</span>
+                <span id="outBalance"></span>
+              </div>
+              <div class="totals-row grand-total">
+                <span>TOTAL DUE :</span>
+                <span id="outTotal"></span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ================= CONFIGURATION =================
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw62gfszXhQ_b1MJqHbzFpQs-ZHPzMJ-Y6pc8-kD17lN1c2bLennxyBBXqXbZeDrS9K/exec';
+    const ROOT_FOLDER_ID = '1SLd83WomxtEH3UPuzo3GpSBbUwiaWPHE';
+    
+    const PROPERTIES = ['ECO 1', 'ECO 2', 'GREEN', 'HOMEY', 'ADI', 'KALAYAAN', 'PLEASANT', 'DREAM', 'PENTHAUZ'];
+    const DEFAULT_PROPERTY = 'ECO 1';
+
+    let appData = {};
+    let activeTab = null;
+    let workbookCache = null;
+    let currentEditingBill = null;
+    let isAddMode = false;
+
+    const tabs = document.querySelectorAll('.office-tab');
+    const contents = document.querySelectorAll('.ribbon-content');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        contents.forEach(c => c.classList.add('hidden'));
+        tab.classList.add('active');
+        document.getElementById(`ribbon-${tab.dataset.target}`).classList.remove('hidden');
+      });
+    });
+
+    async function initDatabase() {
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingOverlay').classList.add('flex');
+      document.getElementById('loadingText').textContent = "Loading Data from Google Sheets...";
+
+      try {
+        const response = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'load' })
+        });
+        const res = await response.json();
+
+        if (res.success) {
+          appData = res.data;
+          for (const tabName in appData) {
+            if (!Array.isArray(appData[tabName])) continue;
+            appData[tabName].forEach(bill => {
+              bill.pdfUrl = bill.pdfUrl || '';
+              if (!bill.status) bill.status = 'Pending';
+              if (!bill.dateSent) bill.dateSent = '';
+              if (!bill.balance) bill.balance = 0;
+              if (!bill.property || !PROPERTIES.includes(bill.property)) bill.property = tabName;
+              
+              // Strict parsing
+              bill.rate = parseFloat(bill.rate) || 0;
+              bill.consumption = parseFloat(bill.consumption) || 0;
+              
+              // Recalculate total
+              bill.total = (bill.consumption * bill.rate) + bill.balance;
+            });
+          }
+
+          PROPERTIES.forEach(prop => {
+            if (!appData[prop]) appData[prop] = [];
+          });
+
+          activeTab = PROPERTIES[0];
+          renderTabs();
+          renderSpreadsheet();
+        } else {
+          alert("Failed to load database: " + res.error);
+        }
+      } catch (error) {
+        console.error(error);
+        alert("Could not connect to the Google Apps Script.");
+      } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('loadingOverlay').classList.remove('flex');
+      }
+    }
+
+    async function syncToDatabase(bill, tabName, actionType) {
+      try {
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: actionType, 
+            tabName: tabName,
+            tenantName: bill.tenantName,
+            property: bill.property,
+            unitNo: bill.unitNo,
+            prevReading: bill.prevReading,
+            presentReading: bill.presentReading,
+            consumption: bill.consumption,
+            rate: bill.rate,
+            balance: bill.balance,
+            total: bill.total,
+            billingDate: bill.billingDate,
+            status: bill.status,
+            pdfUrl: bill.pdfUrl || '',
+            dateSent: bill.dateSent || ''
+          })
+        });
+        return await res.json();
+      } catch (e) {
+        console.error(e);
+        return { success: false };
+      }
+    }
+
+    function formatPeso(amount) {
+      return '₱' + (Number(amount) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatDate(dateObj) {
+      const yyyy = dateObj.getFullYear();
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const dd = String(dateObj.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function toDateInputValue(val) {
+      if (!val) return '';
+      if (val instanceof Date) return isNaN(val) ? '' : formatDate(val);
+      if (typeof val === 'number') {
+        const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+        return isNaN(d) ? '' : formatDate(d);
+      }
+      const s = String(val).trim();
+      if (!s) return '';
+      if (s.includes('T')) return s.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const d = new Date(s);
+      return isNaN(d) ? '' : formatDate(d);
+    }
+
+    function formatDisplayDate(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      if (isNaN(d)) return dateStr;
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function getMonthFolderName(billingDate) {
+      let d = new Date(billingDate);
+      if (isNaN(d.getTime())) d = new Date();
+      return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+
+    function renderTabs() {
+      const tabsContainer = document.getElementById('tabsContainer');
+      tabsContainer.innerHTML = '';
+
+      PROPERTIES.forEach(tabName => {
+        const isActive = tabName === activeTab;
+        const tabBtn = document.createElement('button');
+        tabBtn.className = `px-4 py-2 rounded-t-lg font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${isActive ? 'bg-white border-blue-600 text-blue-700 shadow-sm' : 'bg-slate-200 border-transparent text-slate-600 hover:bg-slate-300'}`;
+        tabBtn.textContent = tabName;
+        
+        tabBtn.addEventListener('click', () => {
+          activeTab = tabName;
+          document.getElementById('searchInput').value = ''; 
+          document.getElementById('statusFilter').value = 'ALL';
+          renderTabs();
+          renderSpreadsheet();
+        });
+
+        tabsContainer.appendChild(tabBtn);
+      });
+    }
+
+    function renderSpreadsheet() {
+      const spreadsheetBody = document.getElementById('spreadsheetBody');
+      spreadsheetBody.innerHTML = '';
+      
+      let pending = 0, generated = 0, sent = 0;
+
+      if (!activeTab || !appData[activeTab] || appData[activeTab].length === 0) {
+        spreadsheetBody.innerHTML = `<tr><td colspan="11" class="px-4 py-12 text-center text-slate-400">No data in "${activeTab}" tab.</td></tr>`;
+        document.getElementById('countPending').textContent = `0 Pending`;
+        document.getElementById('countGenerated').textContent = `0 Generated`;
+        document.getElementById('countSent').textContent = `0 Sent`;
+        return;
+      }
+
+      const bills = appData[activeTab];
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      const statusValue = document.getElementById('statusFilter').value;
+
+      bills.forEach(b => {
+        if (b.status === 'Pending') pending++;
+        else if (b.status === 'Generated') generated++;
+        else if (b.status === 'Sent') sent++;
+      });
+
+      const filteredBills = bills.filter(b => {
+        const matchesSearch = (b.tenantName || '').toLowerCase().includes(searchTerm) 
+          || (b.unitNo || '').toLowerCase().includes(searchTerm);
+        const matchesStatus = (statusValue === 'ALL') || (b.status === statusValue);
+        return matchesSearch && matchesStatus;
+      });
+
+      if (filteredBills.length === 0) {
+        spreadsheetBody.innerHTML = `<tr><td colspan="11" class="px-4 py-12 text-center text-slate-400">No bills found matching your search.</td></tr>`;
+      } else {
+        filteredBills.forEach((bill) => {
+          let badgeClass = 'bg-yellow-100 text-yellow-800';
+          if (bill.status === 'Generated') badgeClass = 'bg-blue-100 text-blue-800';
+          if (bill.status === 'Sent') badgeClass = 'bg-green-100 text-green-800';
+
+          const hasPdf = bill.pdfUrl && String(bill.pdfUrl).trim() !== '';
+          let pdfCell = hasPdf ? `<a href="${bill.pdfUrl}" target="_blank" rel="noopener" class="text-blue-600 hover:underline font-bold text-xs flex justify-center items-center gap-1">View PDF</a>` : `<span class="text-slate-300 text-xs">—</span>`;
+
+          const isDisabled = bill.status !== 'Sent';
+          const disabledAttr = isDisabled ? 'disabled' : '';
+          
+          let dateSentHtml = '';
+          if (bill.dateSent && bill.dateSent !== '') {
+            try {
+              const cleanDateStr = bill.dateSent.split('T')[0];
+              dateSentHtml = `<input type="date" class="table-date-input" value="${cleanDateStr}" ${disabledAttr} onchange="updateDateSent('${bill.tenantName.replace(/'/g, "\\'")}', this.value)">`;
+            } catch(e) {
+              dateSentHtml = `<input type="date" class="table-date-input" ${disabledAttr} onchange="updateDateSent('${bill.tenantName.replace(/'/g, "\\'")}', this.value)">`;
+            }
+          } else {
+            dateSentHtml = `<input type="date" class="table-date-input" ${disabledAttr} onchange="updateDateSent('${bill.tenantName.replace(/'/g, "\\'")}', this.value)">`;
+          }
+
+          const safeName = bill.tenantName.replace(/'/g, "\\'");
+
+          let actionBtn = '';
+          if (bill.status === 'Pending') {
+            actionBtn = `
+              <div class="flex justify-end items-center gap-1">
+                <button onclick="generateSingle('${safeName}')" class="bg-slate-800 text-white px-2 py-1 rounded text-xs font-bold hover:bg-slate-900 transition-colors" title="Generate PDF">Generate</button>
+                <button onclick="openEditModal('${safeName}')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-blue-700 transition-colors" title="Edit bill">Edit</button>
+                <button onclick="deleteBill('${safeName}')" class="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-red-700 transition-colors" title="Delete bill">Del</button>
+              </div>`;
+          } else if (bill.status === 'Generated') {
+            actionBtn = `
+              <div class="flex justify-end items-center gap-1 flex-wrap">
+                <button onclick="regenerateSingle('${safeName}')" class="bg-slate-500 text-white px-2 py-1 rounded text-xs font-bold hover:bg-slate-600 transition-colors" title="Re-generate">Regenerate</button>
+                <button onclick="markAsSent('${safeName}')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-green-700 transition-colors">Sent</button>
+                <button onclick="openEditModal('${safeName}')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-blue-700 transition-colors" title="Edit bill">Edit</button>
+                <button onclick="deleteBill('${safeName}')" class="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-red-700 transition-colors" title="Delete bill">Del</button>
+              </div>`;
+          } else {
+            actionBtn = `
+              <div class="flex justify-end items-center gap-1">
+                <button onclick="openEditModal('${safeName}')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-blue-700 transition-colors" title="Edit bill">Edit</button>
+                <button onclick="deleteBill('${safeName}')" class="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-red-700 transition-colors" title="Delete bill">Del</button>
+              </div>`;
+          }
+
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50 transition-colors";
+
+          tr.innerHTML = `
+            <td class="px-4 py-3 font-medium text-slate-800">${bill.tenantName}</td>
+            <td class="px-4 py-3 text-slate-600">${bill.property || activeTab}</td>
+            <td class="px-4 py-3 text-slate-600">${bill.unitNo || ''}</td>
+            <td class="px-4 py-3 text-slate-600">${formatDisplayDate(bill.billingDate)}</td>
+            <td class="px-4 py-3 text-slate-600">${bill.consumption || 0} cu.m</td>
+            <td class="px-4 py-3 text-slate-600">${formatPeso(bill.rate)}</td>
+            <td class="px-4 py-3 text-slate-600 font-medium">${formatPeso(bill.total)}</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 text-[10px] uppercase tracking-wide rounded-full font-bold ${badgeClass}">${bill.status}</span></td>
+            <td class="px-4 py-3 text-center">${pdfCell}</td>
+            <td class="px-4 py-3 text-right">${actionBtn}</td>
+            <td class="px-4 py-3 text-center">${dateSentHtml}</td>
+          `;
+          spreadsheetBody.appendChild(tr);
+        });
+      }
+
+      document.getElementById('countPending').textContent = `${pending} Pending`;
+      document.getElementById('countGenerated').textContent = `${generated} Generated`;
+      document.getElementById('countSent').textContent = `${sent} Sent`;
+    }
+
+    window.openAddModal = function() {
+      if (!activeTab) return alert("Select a tab first.");
+      isAddMode = true;
+      currentEditingBill = null;
+      document.getElementById('editTenantName').value = '';
+      document.getElementById('editTenantName').readOnly = false;
+      document.getElementById('editProperty').value = activeTab || DEFAULT_PROPERTY;
+      document.getElementById('editUnitNo').value = '';
+      document.getElementById('editPrevReading').value = '0';
+      document.getElementById('editPresentReading').value = '0';
+      document.getElementById('editConsumption').value = '0';
+      document.getElementById('editRate').value = '0';
+      document.getElementById('editBalance').value = '0';
+      document.getElementById('editBillingDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('editStatus').value = 'Pending';
+      document.getElementById('editDateSent').value = '';
+      document.getElementById('editBillModal').querySelector('h3').lastChild.textContent = ' Add Bill';
+      document.getElementById('editBillModal').classList.remove('hidden');
+      document.getElementById('editBillModal').classList.add('flex');
+    };
+
+    window.openEditModal = function(tenantName) {
+      if (!activeTab) return;
+      const bill = appData[activeTab].find(b => b.tenantName === tenantName);
+      if (!bill) return alert("Bill not found.");
+      isAddMode = false;
+      currentEditingBill = bill;
+
+      document.getElementById('editTenantName').value = bill.tenantName || '';
+      document.getElementById('editTenantName').readOnly = false;
+      document.getElementById('editProperty').value = bill.property || activeTab;
+      document.getElementById('editUnitNo').value = bill.unitNo || '';
+      document.getElementById('editPrevReading').value = bill.prevReading || 0;
+      document.getElementById('editPresentReading').value = bill.presentReading || 0;
+      document.getElementById('editConsumption').value = bill.consumption || 0;
+      document.getElementById('editRate').value = bill.rate || 0;
+      document.getElementById('editBalance').value = bill.balance || 0;
+      document.getElementById('editBillingDate').value = toDateInputValue(bill.billingDate);
+      document.getElementById('editStatus').value = bill.status || 'Pending';
+      document.getElementById('editDateSent').value = toDateInputValue(bill.dateSent);
+
+      const modal = document.getElementById('editBillModal');
+      modal.querySelector('h3').lastChild.textContent = ' Edit Bill';
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    };
+
+    window.closeEditModal = function() {
+      const modal = document.getElementById('editBillModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      currentEditingBill = null;
+      isAddMode = false;
+    };
+
+    window.saveBillEdit = async function() {
+      const name = document.getElementById('editTenantName').value.trim();
+      if (!name) return alert("Tenant name is required.");
+
+      const property = document.getElementById('editProperty').value;
+      if (!PROPERTIES.includes(property)) return alert("Please select a valid property.");
+
+      const unitNo = document.getElementById('editUnitNo').value.trim();
+      const prevReading = Number(document.getElementById('editPrevReading').value) || 0;
+      const presentReading = Number(document.getElementById('editPresentReading').value) || 0;
+      let consumption = Number(document.getElementById('editConsumption').value) || 0;
+      const rate = Number(document.getElementById('editRate').value) || 0;
+      const balance = Number(document.getElementById('editBalance').value) || 0;
+      const billingDate = document.getElementById('editBillingDate').value;
+      const status = document.getElementById('editStatus').value;
+      const dateSent = document.getElementById('editDateSent').value || '';
+
+      if (!consumption) {
+        consumption = Math.max(0, presentReading - prevReading);
+      }
+
+      const total = (consumption * rate) + balance;
+
+      const targetTab = property;
+
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingOverlay').classList.add('flex');
+      document.getElementById('loadingText').textContent = isAddMode ? 'Creating bill...' : 'Saving changes...';
+
+      try {
+        if (isAddMode) {
+          if (!appData[targetTab]) appData[targetTab] = [];
+          if (appData[targetTab].some(b => b.tenantName === name)) {
+            throw new Error(`A bill with this tenant name already exists in "${targetTab}".`);
+          }
+          const newBill = {
+            tenantName: name,
+            property, unitNo, prevReading, presentReading, consumption, rate, balance, total,
+            billingDate, status, pdfUrl: '', dateSent
+          };
+          appData[targetTab].push(newBill);
+          await syncToDatabase(newBill, targetTab, 'save');
+          activeTab = targetTab;
+        } else {
+          if (!currentEditingBill) throw new Error("No bill selected.");
+          const originalName = currentEditingBill.tenantName;
+          const originalTab = activeTab;
+          const propertyChanged = property !== originalTab;
+          
+          if (!propertyChanged && name !== originalName && appData[originalTab].some(b => b.tenantName === name)) {
+            throw new Error(`Another bill with this tenant name already exists in "${originalTab}".`);
+          }
+
+          const updated = {
+            ...currentEditingBill,
+            tenantName: name,
+            property, unitNo, prevReading, presentReading, consumption, rate, balance, total,
+            billingDate, status, dateSent
+          };
+
+          if (propertyChanged) {
+            await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              body: JSON.stringify({ action: 'delete', tabName: originalTab, tenantName: originalName })
+            });
+            const oldIdx = appData[originalTab].findIndex(b => b.tenantName === originalName);
+            if (oldIdx !== -1) appData[originalTab].splice(oldIdx, 1);
+
+            if (!appData[targetTab]) appData[targetTab] = [];
+            if (appData[targetTab].some(b => b.tenantName === name)) {
+              throw new Error(`A bill with this tenant name already exists in "${targetTab}".`);
+            }
+            appData[targetTab].push(updated);
+            await syncToDatabase(updated, targetTab, 'save');
+            activeTab = targetTab;
+          } else {
+            if (name !== originalName) {
+              await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'delete', tabName: originalTab, tenantName: originalName })
+              });
+              const idx = appData[originalTab].findIndex(b => b.tenantName === originalName);
+              if (idx !== -1) appData[originalTab][idx] = updated;
+              await syncToDatabase(updated, targetTab, 'save');
+            } else {
+              const idx = appData[originalTab].findIndex(b => b.tenantName === originalName);
+              if (idx !== -1) appData[originalTab][idx] = updated;
+              await syncToDatabase(updated, targetTab, 'update');
+            }
+          }
+        }
+
+        closeEditModal();
+        renderTabs();
+        renderSpreadsheet();
+      } catch (err) {
+        console.error(err);
+        alert("Error: " + err.message);
+      } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('loadingOverlay').classList.remove('flex');
+      }
+    };
+
+    window.deleteBill = async function(tenantName) {
+      if (!activeTab) return;
+      const idx = appData[activeTab].findIndex(b => b.tenantName === tenantName);
+      if (idx === -1) return alert("Bill not found.");
+      const bill = appData[activeTab][idx];
+
+      const confirmDelete = confirm(`Delete bill for "${tenantName}" (Unit ${bill.unitNo}) from "${activeTab}" tab? This will remove the row from Google Sheets and cannot be undone.`);
+      if (!confirmDelete) return;
+
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingOverlay').classList.add('flex');
+      document.getElementById('loadingText').textContent = `Deleting ${tenantName}...`;
+
+      try {
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'delete', tabName: activeTab, tenantName })
+        });
+        const resData = await res.json();
+        if (resData.success) {
+          appData[activeTab].splice(idx, 1);
+          renderSpreadsheet();
+        } else {
+          alert("Failed to delete: " + (resData.error || "Unknown error"));
+        }
+      } catch (e) {
+        console.error(e);
+        alert("Error deleting bill: " + e.message);
+      } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('loadingOverlay').classList.remove('flex');
+      }
+    };
+
+    document.getElementById('searchInput').addEventListener('input', renderSpreadsheet);
+    document.getElementById('statusFilter').addEventListener('change', renderSpreadsheet);
+
+    window.updateDateSent = async function(tenantName, newDateStr) {
+      const billIndex = appData[activeTab].findIndex(b => b.tenantName === tenantName);
+      if (billIndex === -1) return;
+      const bill = appData[activeTab][billIndex];
+
+      bill.dateSent = newDateStr;
+      await syncToDatabase(bill, activeTab, 'update');
+    };
+
+    async function generatePDFDoc(bill) {
+      const safeSetText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+      };
+
+      try {
+        const subtotal = Number(bill.consumption || 0) * Number(bill.rate || 0);
+        const finalTotal = subtotal + Number(bill.balance || 0);
+
+        safeSetText('outDate', formatDisplayDate(bill.billingDate) || '');
+        safeSetText('outTenant', bill.tenantName || '');
+        safeSetText('outProperty', bill.property || activeTab);
+        safeSetText('outUnitNo', bill.unitNo || '');
+        safeSetText('outPrevReading', bill.prevReading || 0);
+        safeSetText('outPresentReading', bill.presentReading || 0);
+        safeSetText('outConsumption', bill.consumption || 0);
+        safeSetText('outRate', formatPeso(bill.rate || 0));
+        safeSetText('outBalance', formatPeso(bill.balance || 0));
+        safeSetText('outSubtotalBottom', formatPeso(subtotal));
+        safeSetText('outTotal', formatPeso(finalTotal));
+      } catch (err) {
+        throw new Error("Failed to populate template: " + err.message);
+      }
+
+      try {
+        if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+           throw new Error("Required libraries not loaded.");
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const billPage = document.getElementById('bill-page');
+
+        const canvas = await html2canvas(billPage, { scale: 2, useCORS: true, windowWidth: 800 });
+        doc.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, 210, 297);
+
+        return doc;
+      } catch (err) {
+        throw new Error("Canvas/PDF rendering failed: " + err.message);
+      }
+    }
+
+    async function uploadPdfToDrive(bill, doc) {
+      const fileName = `Water Bill - ${bill.tenantName}.pdf`;
+      const monthName = getMonthFolderName(bill.billingDate);
+      const propertyName = bill.property || activeTab;
+      const base64Data = doc.output('datauristring').split(',')[1];
+
+      const uploadRes = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'uploadPdf',
+          fileName: fileName,
+          base64: base64Data,
+          rootFolderId: ROOT_FOLDER_ID,
+          propertyName: propertyName,
+          monthName: monthName,
+          tenantName: bill.tenantName
+        })
+      });
+
+      let uploadData;
+      try {
+        uploadData = await uploadRes.json();
+      } catch (parseError) {
+        throw new Error("Invalid response from server. Check Apps Script deployment.");
+      }
+
+      const isSuccess = uploadData && (uploadData.success === true || (uploadData.data && uploadData.data.success === true));
+      const fileUrl = uploadData && (uploadData.fileUrl || (uploadData.data && uploadData.data.fileUrl));
+      
+      if (!isSuccess || !fileUrl) {
+        const detail = uploadData ? (uploadData.error || uploadData.message || JSON.stringify(uploadData)) : 'Empty response';
+        throw new Error("Upload failed: " + detail);
+      }
+
+      return fileUrl;
+    }
+
+    window.generateSingle = async function(tenantName) {
+      const billIndex = appData[activeTab].findIndex(b => b.tenantName === tenantName);
+      if (billIndex === -1) return;
+      const bill = appData[activeTab][billIndex];
+      
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingOverlay').classList.add('flex');
+      document.getElementById('loadingText').textContent = `Generating PDF for ${bill.tenantName}...`;
+
+      try {
+        const doc = await generatePDFDoc(bill);
+        document.getElementById('loadingText').textContent = `Uploading to Drive...`;
+        bill.pdfUrl = await uploadPdfToDrive(bill, doc);
+
+        bill.status = 'Generated';
+        renderSpreadsheet(); 
+        await syncToDatabase(bill, activeTab, 'update');
+      } catch (error) {
+        console.error(error);
+        alert("Error generating PDF: " + error.message);
+      } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('loadingOverlay').classList.remove('flex');
+      }
+    };
+
+    window.regenerateSingle = async function(tenantName) {
+      const billIndex = appData[activeTab].findIndex(b => b.tenantName === tenantName);
+      if (billIndex === -1) return;
+      const bill = appData[activeTab][billIndex];
+      
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingOverlay').classList.add('flex');
+      document.getElementById('loadingText').textContent = `Regenerating PDF for ${bill.tenantName}...`;
+
+      try {
+        const doc = await generatePDFDoc(bill);
+        document.getElementById('loadingText').textContent = `Re-uploading to Drive...`;
+        bill.pdfUrl = await uploadPdfToDrive(bill, doc);
+        
+        renderSpreadsheet();
+        await syncToDatabase(bill, activeTab, 'update');
+      } catch (error) {
+        console.error(error);
+        alert("Error regenerating PDF: " + error.message);
+      } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('loadingOverlay').classList.remove('flex');
+      }
+    };
+
+    document.getElementById('batchGenerateBtn').addEventListener('click', async () => {
+      if (!activeTab) return alert("No active tab selected.");
+      
+      const pendingBills = appData[activeTab].filter(b => b.status === 'Pending');
+      
+      if (pendingBills.length === 0) {
+        return alert("There are no Pending bills in this tab to generate.");
+      }
+
+      const confirmGenerate = confirm(`Are you sure you want to generate PDFs for all ${pendingBills.length} Pending bills in "${activeTab}"?`);
+      if (!confirmGenerate) return;
+
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingOverlay').classList.add('flex');
+
+      try {
+        for (let i = 0; i < pendingBills.length; i++) {
+          const bill = pendingBills[i];
+          document.getElementById('loadingText').textContent = `Generating (${i + 1}/${pendingBills.length}): ${bill.tenantName}...`;
+          
+          const doc = await generatePDFDoc(bill);
+          document.getElementById('loadingText').textContent = `Uploading (${i + 1}/${pendingBills.length}): ${bill.tenantName}...`;
+          bill.pdfUrl = await uploadPdfToDrive(bill, doc);
+
+          bill.status = 'Generated';
+          renderSpreadsheet(); 
+          await syncToDatabase(bill, activeTab, 'update');
+        }
+        
+        alert(`Successfully generated and uploaded ${pendingBills.length} bills.`);
+      } catch (error) {
+        console.error(error);
+        alert("An error occurred during batch generation: " + error.message);
+      } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('loadingOverlay').classList.remove('flex');
+      }
+    });
+
+    document.getElementById('batchDownloadZipBtn').addEventListener('click', async () => {
+      if (!activeTab) return alert("No active tab selected.");
+
+      const generatedBills = appData[activeTab].filter(b => b.pdfUrl && b.pdfUrl.trim() !== '');
+      
+      if (generatedBills.length === 0) {
+        return alert("There are no generated PDFs in this tab to download. Please generate them first.");
+      }
+
+      const confirmZip = confirm(`Are you sure you want to download a ZIP file containing ${generatedBills.length} generated PDFs?`);
+      if (!confirmZip) return;
+
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingOverlay').classList.add('flex');
+      document.getElementById('loadingText').textContent = `Preparing ZIP...`;
+
+      try {
+        const zip = new JSZip();
+        let count = 0;
+
+        for (let i = 0; i < generatedBills.length; i++) {
+          const bill = generatedBills[i];
+          
+          try {
+            document.getElementById('loadingText').textContent = `Downloading (${i + 1}/${generatedBills.length}): ${bill.tenantName}...`;
+            
+            const response = await fetch(bill.pdfUrl);
+            if (!response.ok) throw new Error("Network response was not ok");
+            
+            const blob = await response.blob();
+            const fileName = `Water Bill - ${bill.tenantName}.pdf`;
+            const propertyName = bill.property || activeTab;
+            const monthName = getMonthFolderName(bill.billingDate);
+            const tenantFolder = bill.tenantName || "Unknown Tenant";
+            const folderPath = `${propertyName}/${monthName}/${tenantFolder}/`;
+            
+            zip.file(folderPath + fileName, blob);
+            count++;
+          } catch (err) {
+            console.warn(`Could not download PDF for ${bill.tenantName}:`, err);
+          }
+        }
+
+        if (count === 0) throw new Error("Could not download any PDF files.");
+
+        document.getElementById('loadingText').textContent = `Zipping files...`;
+        const content = await zip.generateAsync({ type: "blob" });
+        
+        const zipFileName = `Water Bills - ${activeTab} - ${new Date().toISOString().split('T')[0]}.zip`;
+        
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(content);
+        a.download = zipFileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+
+      } catch (error) {
+        console.error(error);
+        alert("Error creating ZIP: " + error.message);
+      } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('loadingOverlay').classList.remove('flex');
+      }
+    });
+
+    window.markAsSent = async function(tenantName) {
+      const billIndex = appData[activeTab].findIndex(b => b.tenantName === tenantName);
+      if (billIndex === -1) return;
+      const bill = appData[activeTab][billIndex];
+      bill.status = 'Sent';
+      renderSpreadsheet();
+      await syncToDatabase(bill, activeTab, 'update');
+    };
+
+    document.getElementById('clearCurrentTabBtn').addEventListener('click', async () => {
+      if (!activeTab) return alert("No active tab selected.");
+      
+      const confirmClear = confirm(`Are you sure you want to clear ALL data in the "${activeTab}" tab? This will wipe Google Sheets data.`);
+      
+      if (confirmClear) {
+        document.getElementById('loadingOverlay').classList.remove('hidden');
+        document.getElementById('loadingOverlay').classList.add('flex');
+        document.getElementById('loadingText').textContent = `Clearing tab ${activeTab}...`;
+
+        try {
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'clearTab', tabName: activeTab })
+          });
+          
+          const resData = await res.json();
+          
+          if (resData.success) {
+            appData[activeTab] = [];
+            renderSpreadsheet();
+            alert(`Tab "${activeTab}" cleared.`);
+          } else {
+            alert("Failed to clear: " + (resData.error || "Unknown"));
+          }
+        } catch (e) {
+          alert("Error clearing tab.");
+        } finally {
+          document.getElementById('loadingOverlay').classList.add('hidden');
+          document.getElementById('loadingOverlay').classList.remove('flex');
+        }
+      }
+    });
+
+    document.getElementById('addBillFormBtn').addEventListener('click', async () => {
+      const tenantName = document.getElementById('inputTenant').value;
+      if (!tenantName) return alert("Enter Tenant Name");
+
+      const property = document.getElementById('inputProperty').value;
+      if (!PROPERTIES.includes(property)) return alert("Please select a valid property.");
+
+      const targetTab = property;
+      const unitNo = document.getElementById('inputUnitNo').value;
+      const prevReading = Number(document.getElementById('inputPrevReading').value) || 0;
+      const presentReading = Number(document.getElementById('inputPresentReading').value) || 0;
+      let consumption = Number(document.getElementById('inputConsumption').value) || 0;
+      const rate = Number(document.getElementById('inputRate').value) || 0;
+      const balance = Number(document.getElementById('inputBalance').value) || 0;
+      const billingDate = document.getElementById('inputBillingDate').value || new Date().toISOString().split('T')[0];
+
+      if (!consumption) {
+        consumption = Math.max(0, presentReading - prevReading);
+      }
+
+      const total = (consumption * rate) + balance;
+
+      if (!appData[targetTab]) appData[targetTab] = [];
+      if (appData[targetTab].some(b => b.tenantName === tenantName)) {
+        return alert(`A bill with this tenant name already exists in "${targetTab}".`);
+      }
+
+      const newBill = {
+        tenantName: tenantName,
+        property: property,
+        unitNo: unitNo,
+        prevReading: prevReading,
+        presentReading: presentReading,
+        consumption: consumption,
+        rate: rate,
+        balance: balance,
+        total: total,
+        billingDate: billingDate,
+        status: 'Pending',
+        pdfUrl: '',
+        dateSent: ''
+      };
+
+      appData[targetTab].push(newBill);
+      document.getElementById('inputTenant').value = '';
+
+      activeTab = targetTab;
+      renderTabs();
+      renderSpreadsheet();
+
+      await syncToDatabase(newBill, targetTab, 'save');
+    });
+
+    document.getElementById('excelInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingOverlay').classList.add('flex');
+      document.getElementById('loadingText').textContent = "Reading Excel File...";
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          workbookCache = XLSX.read(data, { type: 'array', cellDates: true });
+          
+          const sheetSelect = document.getElementById('sheetSelect');
+          sheetSelect.innerHTML = '';
+          workbookCache.SheetNames.forEach(sheetName => {
+            const option = document.createElement('option');
+            option.value = sheetName;
+            option.textContent = sheetName;
+            sheetSelect.appendChild(option);
+          });
+          document.getElementById('sheetSelectionArea').classList.remove('hidden');
+        } catch (error) {
+          alert("Error reading file.");
+        } finally {
+          document.getElementById('loadingOverlay').classList.add('hidden');
+          document.getElementById('loadingOverlay').classList.remove('flex');
+          document.getElementById('excelInput').value = ''; 
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    document.getElementById('confirmLoadSheetBtn').addEventListener('click', async () => {
+      if (!workbookCache) return;
+      const selectedSheetName = document.getElementById('sheetSelect').value;
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      document.getElementById('loadingOverlay').classList.add('flex');
+      
+      try {
+        const worksheet = workbookCache.Sheets[selectedSheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { raw: true });
+        if (json.length === 0) return alert("Sheet empty.");
+
+        for (let i = 0; i < json.length; i++) {
+          document.getElementById('loadingText').textContent = `Uploading Data... (${i + 1}/${json.length})`;
+          
+          const row = json[i];
+          const rowKeys = Object.keys(row).reduce((acc, key) => {
+            acc[key.trim().toUpperCase()] = row[key];
+            return acc;
+          }, {});
+
+          const rawProperty = (rowKeys['PROPERTY'] || rowKeys['BUILDING'] || '').trim().toUpperCase();
+          const matchedProperty = PROPERTIES.find(p => p.toUpperCase() === rawProperty) || DEFAULT_PROPERTY;
+          const targetTab = matchedProperty;
+
+          const prevReading = Number(rowKeys['PREVIOUS'] || rowKeys['METER READING PREVIOUS'] || 0);
+          const presentReading = Number(rowKeys['PRESENT'] || rowKeys['METER Present Reading'] || 0);
+          let consumption = Number(rowKeys['CONSUMPTION'] || 0);
+          if (!consumption) consumption = Math.max(0, presentReading - prevReading);
+          
+          const rate = Number(rowKeys['RATE'] || rowKeys['AMOUNT PER CUBIC METER'] || 0);
+          const balance = Number(rowKeys['BALANCE'] || 0);
+          const total = (consumption * rate) + balance;
+
+          const tenantName = rowKeys['TENANT NAME'] || rowKeys['NAME'] || 'Unknown';
+
+          if (!appData[targetTab]) appData[targetTab] = [];
+          if (appData[targetTab].some(b => b.tenantName === tenantName)) {
+            console.warn(`Skipping duplicate tenant "${tenantName}" in "${targetTab}"`);
+            continue;
+          }
+
+          const newBill = {
+            tenantName: tenantName,
+            property: matchedProperty,
+            unitNo: rowKeys['UNIT NO.'] || rowKeys['UNIT NO'] || rowKeys['UNIT'] || '',
+            prevReading: prevReading,
+            presentReading: presentReading,
+            consumption: consumption,
+            rate: rate,
+            balance: balance,
+            total: total,
+            billingDate: rowKeys['BILLING DATE'] || rowKeys['DATE'] || new Date().toISOString().split('T')[0],
+            status: 'Pending',
+            pdfUrl: '',
+            dateSent: ''
+          };
+
+          appData[targetTab].push(newBill);
+          await syncToDatabase(newBill, targetTab, 'save');
+        }
+
+        activeTab = DEFAULT_PROPERTY;
+        document.getElementById('searchInput').value = ''; 
+        document.getElementById('statusFilter').value = 'ALL'; 
+        renderTabs(); 
+        renderSpreadsheet();
+        document.getElementById('sheetSelectionArea').classList.add('hidden');
+        workbookCache = null;
+      } catch (error) {
+        console.error(error);
+        alert("Error loading sheet.");
+      } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('loadingOverlay').classList.remove('flex');
+      }
+    });
+
+    document.getElementById('exportDriveBtn').addEventListener('click', () => {
+      alert("Export to Drive functionality would use the same Apps Script endpoint. Ensure ROOT_FOLDER_ID is set correctly.");
+    });
+
+    window.onload = initDatabase;
+  </script>
+</body>
+</html>
