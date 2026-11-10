@@ -69,6 +69,7 @@ async function initDatabase() {
           bill.pdfUrl = bill.pdfUrl || '';
           if (!bill.status) bill.status = 'Pending';
           if (!bill.dateSent) bill.dateSent = '';
+          bill.remarks = bill.remarks || '';
           bill.balance = parseFloat(bill.balance) || 0;
           bill.penalty = parseFloat(bill.penalty) || 0;
           if (!bill.property || !PROPERTIES.includes(bill.property)) bill.property = tabName;
@@ -125,7 +126,8 @@ async function syncToDatabase(bill, tabName, actionType) {
         billingDate: bill.billingDate,
         status: bill.status,
         pdfUrl: bill.pdfUrl || '',
-        dateSent: bill.dateSent || ''
+        dateSent: bill.dateSent || '',
+        remarks: bill.remarks || ''
       })
     });
     return await res.json();
@@ -383,7 +385,7 @@ function renderSpreadsheet() {
   let pending = 0, generated = 0, sent = 0;
 
   if (!activeTab || !appData[activeTab] || appData[activeTab].length === 0) {
-    spreadsheetBody.innerHTML = `<tr><td colspan="15" class="px-4 py-12 text-center text-slate-400">No data in "${activeTab}" tab.</td></tr>`;
+    spreadsheetBody.innerHTML = `<tr><td colspan="16" class="px-4 py-12 text-center text-slate-400">No data in "${activeTab}" tab.</td></tr>`;
     document.getElementById('countPending').textContent = `0 Pending`;
     document.getElementById('countGenerated').textContent = `0 Generated`;
     document.getElementById('countSent').textContent = `0 Sent`;
@@ -429,7 +431,7 @@ function renderSpreadsheet() {
   }
 
   if (filteredBills.length === 0) {
-    spreadsheetBody.innerHTML = `<tr><td colspan="15" class="px-4 py-12 text-center text-slate-400">No bills found matching your search.</td></tr>`;
+    spreadsheetBody.innerHTML = `<tr><td colspan="16" class="px-4 py-12 text-center text-slate-400">No bills found matching your search.</td></tr>`;
   } else {
     filteredBills.forEach((bill) => {
       let badgeClass = 'bg-yellow-100 text-yellow-800';
@@ -499,6 +501,7 @@ function renderSpreadsheet() {
         <td class="px-4 py-3 text-center">${pdfCell}</td>
         <td class="px-4 py-3 text-right">${actionBtn}</td>
         <td class="px-4 py-3 text-center">${dateSentHtml}</td>
+        <td class="px-4 py-3 text-slate-600">${escapeHtml(bill.remarks || '')}</td>
       `;
       const billIndex = appData[activeTab].indexOf(bill);
       tr.dataset.billIndex = billIndex;
@@ -564,6 +567,15 @@ function renderSpreadsheet() {
       dateSentEditor.value = toDateInputValue(bill.dateSent);
       cells[14].replaceChildren(dateSentEditor);
       cells[14].classList.add('spreadsheet-cell');
+
+      const remarksEditor = document.createElement('input');
+      remarksEditor.type = 'text';
+      remarksEditor.className = 'spreadsheet-editor';
+      remarksEditor.dataset.field = 'remarks';
+      remarksEditor.setAttribute('aria-label', 'remarks');
+      remarksEditor.value = bill.remarks || '';
+      cells[15].replaceChildren(remarksEditor);
+      cells[15].classList.add('spreadsheet-cell');
       spreadsheetBody.appendChild(tr);
     });
   }
@@ -708,6 +720,7 @@ window.openAddModal = function() {
   document.getElementById('editBillingDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('editStatus').value = 'Pending';
   document.getElementById('editDateSent').value = '';
+  document.getElementById('editRemarks').value = '';
   document.getElementById('editBillModal').querySelector('h3').lastChild.textContent = ' Add Bill';
   document.getElementById('editBillModal').classList.remove('hidden');
   document.getElementById('editBillModal').classList.add('flex');
@@ -733,6 +746,7 @@ window.openEditModal = function(tenantName) {
   document.getElementById('editBillingDate').value = toDateInputValue(bill.billingDate);
   document.getElementById('editStatus').value = bill.status || 'Pending';
   document.getElementById('editDateSent').value = toDateInputValue(bill.dateSent);
+  document.getElementById('editRemarks').value = bill.remarks || '';
 
   const modal = document.getElementById('editBillModal');
   modal.querySelector('h3').lastChild.textContent = ' Edit Bill';
@@ -765,6 +779,7 @@ window.saveBillEdit = async function() {
   const billingDate = document.getElementById('editBillingDate').value;
   const status = document.getElementById('editStatus').value;
   const dateSent = document.getElementById('editDateSent').value || '';
+  const remarks = document.getElementById('editRemarks').value.trim();
 
   const total = consumption * rate;
 
@@ -783,7 +798,7 @@ window.saveBillEdit = async function() {
       const newBill = {
         tenantName: name,
         property, unitNo, prevReading, presentReading, consumption, rate, balance, penalty, total,
-        billingDate, status, pdfUrl: '', dateSent
+        billingDate, status, pdfUrl: '', dateSent, remarks
       };
       appData[targetTab].push(newBill);
       await syncToDatabase(newBill, targetTab, 'save');
@@ -802,7 +817,7 @@ window.saveBillEdit = async function() {
         ...currentEditingBill,
         tenantName: name,
         property, unitNo, prevReading, presentReading, consumption, rate, balance, penalty, total,
-        billingDate, status, dateSent
+        billingDate, status, dateSent, remarks
       };
 
       if (propertyChanged) {
@@ -1214,11 +1229,13 @@ document.getElementById('addBillFormBtn').addEventListener('click', async () => 
     billingDate: billingDate,
     status: 'Pending',
     pdfUrl: '',
-    dateSent: ''
+    dateSent: '',
+    remarks: document.getElementById('inputRemarks').value.trim()
   };
 
   appData[targetTab].push(newBill);
   document.getElementById('inputTenant').value = '';
+  document.getElementById('inputRemarks').value = '';
 
   activeTab = targetTab;
   renderTabs();
@@ -1330,7 +1347,8 @@ document.getElementById('confirmLoadSheetBtn').addEventListener('click', async (
         billingDate: new Date().toISOString().split('T')[0], 
         status: 'Pending',
         pdfUrl: '',
-        dateSent: ''
+        dateSent: '',
+        remarks: ''
       };
 
       appData[selectedProperty].push(newBill);
@@ -1445,7 +1463,8 @@ document.getElementById('importLinkBtn').addEventListener('click', async () => {
         billingDate: new Date().toISOString().split('T')[0],
         status: 'Pending',
         pdfUrl: '',
-        dateSent: ''
+        dateSent: '',
+        remarks: ''
       };
 
       appData[targetProp].push(newBill);
@@ -1477,7 +1496,7 @@ document.getElementById('exportDriveBtn').addEventListener('click', () => {
 const TAB_EXPORT_HEADERS = [
   'Tenant Name', 'Property', 'Unit No', 'Billing Date', 'Previous', 'Current',
   'Consumption (cu.m)', 'Rate', 'Balance', 'Penalty', 'Total', 'Status',
-  'PDF URL', 'Date Sent'
+  'PDF URL', 'Date Sent', 'Remarks'
 ];
 
 function getActiveTabBills() {
@@ -1503,7 +1522,8 @@ function getTabExportRows(bills) {
     Number(bill.total) || 0,
     bill.status || '',
     bill.pdfUrl || '',
-    toDateInputValue(bill.dateSent)
+    toDateInputValue(bill.dateSent),
+    bill.remarks || ''
   ]);
   const totalConsumption = bills.reduce((sum, bill) => sum + (Number(bill.consumption) || 0), 0);
   const totalAmount = bills.reduce((sum, bill) => sum + (Number(bill.total) || 0), 0);
@@ -1542,7 +1562,8 @@ function printActiveTab() {
       formatPeso(bill.total),
       bill.status || '',
       bill.pdfUrl || '',
-      formatDisplayDate(bill.dateSent)
+      formatDisplayDate(bill.dateSent),
+      bill.remarks || ''
     ];
     return `<tr>${values.map(value => `<td>${escapeHtml(value)}</td>`).join('')}</tr>`;
   }).join('');
@@ -1577,7 +1598,7 @@ document.getElementById('downloadTabBtn').addEventListener('click', () => {
   worksheet['!cols'] = [
     { wch: 24 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
     { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
-    { wch: 36 }, { wch: 14 }
+    { wch: 36 }, { wch: 14 }, { wch: 32 }
   ];
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Water Bills');

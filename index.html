@@ -93,6 +93,10 @@
           <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Billing Date</label>
           <input type="date" id="editBillingDate" class="w-full px-3 py-2 border rounded text-sm">
         </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Remarks</label>
+          <textarea id="editRemarks" rows="2" class="w-full px-3 py-2 border rounded text-sm"></textarea>
+        </div>
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Status</label>
@@ -334,6 +338,10 @@
           <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Billing Date</label>
           <input type="date" id="inputBillingDate" class="w-full px-3 py-2 border rounded text-sm">
         </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Remarks</label>
+          <textarea id="inputRemarks" rows="2" class="w-full px-3 py-2 border rounded text-sm"></textarea>
+        </div>
       </div>
       
       <div class="shrink-0 mt-2 pt-2 border-t">
@@ -393,6 +401,7 @@
               <th data-sort-field="pdfUrl" class="px-4 py-2 border-b text-center"><button type="button" class="sort-header">PDF <span class="sort-indicator">↕</span></button></th>
               <th class="px-4 py-2 border-b text-right">Actions</th>
               <th data-sort-field="dateSent" class="px-4 py-2 border-b text-center"><button type="button" class="sort-header">Date Sent <span class="sort-indicator">↕</span></button></th>
+              <th data-sort-field="remarks" class="px-4 py-2 border-b"><button type="button" class="sort-header">Remarks <span class="sort-indicator">↕</span></button></th>
             </tr>
           </thead>
           <tbody id="spreadsheetBody" class="divide-y divide-slate-100 text-sm">
@@ -403,7 +412,7 @@
               <td id="consumptionSum" class="px-4 py-3 whitespace-nowrap">0 cu.m</td>
               <td colspan="3"></td>
               <td id="totalSum" class="px-4 py-3 whitespace-nowrap">₱0.00</td>
-              <td colspan="4"></td>
+              <td colspan="5"></td>
             </tr>
           </tfoot>
         </table>
