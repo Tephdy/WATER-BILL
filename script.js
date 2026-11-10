@@ -1,6 +1,7 @@
 // ================= CONFIGURATION =================
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz_mEnxHFDApvKuuzLT1-Qzi1hfHHyhZOmtfH0KLDLACvfS_y_V9dyIVM85SgWUrIMN/exec';
 const ROOT_FOLDER_ID = '1SLd83WomxtEH3UPuzo3GpSBbUwiaWPHE';
+const TENANT_SPREADSHEET_ID = '1eQUsnIRkXBqohI_6F-oV95bKZAn75lilbkx4KEqd4dw';
 
 const PROPERTIES = ['ECO 1', 'ECO 2', 'GREEN', 'HOMEY', 'ADI', 'KALAYAAN', 'PLEASANT', 'DREAM', 'PENTHAUZ'];
 const DEFAULT_PROPERTY = 'ECO 1';
@@ -133,6 +134,178 @@ async function syncToDatabase(bill, tabName, actionType) {
     return { success: false };
   }
 }
+
+function normalizeTenantValue(value) {
+  return String(value == null ? '' : value).trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+function normalizeHeader(value) {
+  return String(value == null ? '' : value).replace(/[^a-z0-9]/gi, '').toLocaleLowerCase();
+}
+
+async function loadTenantRecords(property) {
+  const queryUrl = `https://docs.google.com/spreadsheets/d/${TENANT_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(property)}`;
+  const response = await fetch(queryUrl);
+  if (!response.ok) {
+    throw new Error(`Could not read the "${property}" tab from the main tenant spreadsheet.`);
+  }
+
+  const csvText = await response.text();
+  const workbook = XLSX.read(csvText, { type: 'string' });
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!worksheet) throw new Error(`The "${property}" tab could not be parsed.`);
+
+  const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: '' });
+  const headerRowIndex = rows.findIndex(row => {
+    const headers = row.map(normalizeHeader);
+    return headers.includes('name') && headers.includes('unit');
+  });
+  if (headerRowIndex === -1) {
+    throw new Error(`The "${property}" tab must contain "Name" and "Unit" columns.`);
+  }
+
+  const headers = rows[headerRowIndex].map(normalizeHeader);
+  const nameColumn = headers.indexOf('name');
+  const unitColumn = headers.indexOf('unit');
+  return rows.slice(headerRowIndex + 1)
+    .map(row => ({
+      tenantName: String(row[nameColumn] == null ? '' : row[nameColumn]).trim(),
+      unitNo: String(row[unitColumn] == null ? '' : row[unitColumn]).trim()
+    }))
+    .filter(record => record.tenantName && record.unitNo);
+}
+
+function addToIndex(index, key, record) {
+  if (!key) return;
+  if (!index.has(key)) index.set(key, []);
+  index.get(key).push(record);
+}
+
+async function syncTenantDetails() {
+  const button = document.getElementById('syncTenantsBtn');
+  button.disabled = true;
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  document.getElementById('loadingOverlay').classList.add('flex');
+  document.getElementById('loadingText').textContent = 'Loading main tenant spreadsheet...';
+
+  let updatedCount = 0;
+  let unchangedCount = 0;
+  let unmatchedCount = 0;
+  let ambiguousCount = 0;
+  let failedTenant = '';
+
+  try {
+    const recordsByProperty = {};
+    for (const property of PROPERTIES) {
+      recordsByProperty[property] = await loadTenantRecords(property);
+    }
+
+    for (const property of PROPERTIES) {
+      const sourceRecords = recordsByProperty[property];
+      const sourceByPair = new Map();
+      const sourceByUnit = new Map();
+      const sourceByName = new Map();
+      sourceRecords.forEach(record => {
+        addToIndex(sourceByPair, `${normalizeTenantValue(record.tenantName)}|${normalizeTenantValue(record.unitNo)}`, record);
+        addToIndex(sourceByUnit, normalizeTenantValue(record.unitNo), record);
+        addToIndex(sourceByName, normalizeTenantValue(record.tenantName), record);
+      });
+
+      const bills = appData[property] || [];
+      const localUnitCounts = new Map();
+      const localNameCounts = new Map();
+      bills.forEach(bill => {
+        const unit = normalizeTenantValue(bill.unitNo);
+        const name = normalizeTenantValue(bill.tenantName);
+        localUnitCounts.set(unit, (localUnitCounts.get(unit) || 0) + 1);
+        localNameCounts.set(name, (localNameCounts.get(name) || 0) + 1);
+      });
+      const matchedSources = new Set();
+
+      for (let index = 0; index < bills.length; index++) {
+        const bill = bills[index];
+        const nameKey = normalizeTenantValue(bill.tenantName);
+        const unitKey = normalizeTenantValue(bill.unitNo);
+        const pairMatches = sourceByPair.get(`${nameKey}|${unitKey}`) || [];
+        let matches = pairMatches;
+
+        if (matches.length === 0 && unitKey && localUnitCounts.get(unitKey) === 1) {
+          matches = sourceByUnit.get(unitKey) || [];
+        }
+        if (matches.length === 0 && nameKey && localNameCounts.get(nameKey) === 1) {
+          matches = sourceByName.get(nameKey) || [];
+        }
+
+        if (matches.length === 0) {
+          unmatchedCount++;
+          continue;
+        }
+        if (matches.length !== 1 || matchedSources.has(matches[0])) {
+          ambiguousCount++;
+          continue;
+        }
+
+        const source = matches[0];
+        matchedSources.add(source);
+        if (bill.tenantName === source.tenantName && String(bill.unitNo || '').trim() === source.unitNo) {
+          unchangedCount++;
+          continue;
+        }
+
+        const updatedBill = { ...bill, tenantName: source.tenantName, unitNo: source.unitNo, property };
+        const hasDuplicateName = bills.some((other, otherIndex) =>
+          otherIndex !== index && normalizeTenantValue(other.tenantName) === normalizeTenantValue(updatedBill.tenantName)
+        );
+        if (hasDuplicateName) {
+          ambiguousCount++;
+          continue;
+        }
+
+        failedTenant = `${property}: ${bill.tenantName} (${bill.unitNo || 'no unit'})`;
+        document.getElementById('loadingText').textContent = `Updating ${failedTenant}...`;
+        if (bill.tenantName !== updatedBill.tenantName) {
+          const deleteResponse = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'delete', tabName: property, tenantName: bill.tenantName })
+          });
+          const deleteResult = await deleteResponse.json();
+          if (!deleteResult.success) {
+            throw new Error(deleteResult.error || `Could not rename ${failedTenant}.`);
+          }
+
+          const saveResult = await syncToDatabase(updatedBill, property, 'save');
+          if (!saveResult.success) {
+            const rollbackResult = await syncToDatabase(bill, property, 'save');
+            if (!rollbackResult.success) {
+              throw new Error(`Updating ${failedTenant} failed, and its original row could not be restored. Reload and verify the spreadsheet.`);
+            }
+            throw new Error(saveResult.error || `Could not save the tenant name for ${failedTenant}; the old row was restored.`);
+          }
+        } else {
+          const saveResult = await syncToDatabase(updatedBill, property, 'update');
+          if (!saveResult.success) throw new Error(saveResult.error || `Could not update ${failedTenant}.`);
+        }
+
+        bills[index] = updatedBill;
+        updatedCount++;
+        failedTenant = '';
+      }
+    }
+
+    renderSpreadsheet();
+    alert(`Tenant sync complete.\n\nUpdated: ${updatedCount}\nAlready up to date: ${unchangedCount}\nNo match: ${unmatchedCount}\nSkipped as ambiguous: ${ambiguousCount}`);
+  } catch (error) {
+    console.error(error);
+    const progress = updatedCount ? ` ${updatedCount} record(s) were updated before the error.` : '';
+    alert(`Tenant sync stopped${failedTenant ? ` while updating ${failedTenant}` : ''}: ${error.message}${progress}`);
+  } finally {
+    button.disabled = false;
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    document.getElementById('loadingOverlay').classList.remove('flex');
+  }
+}
+
+document.getElementById('syncTenantsBtn').addEventListener('click', syncTenantDetails);
 
 function formatPeso(amount) {
   return '₱' + (Number(amount) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
