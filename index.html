@@ -166,6 +166,10 @@
               <svg class="text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m14.836 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-14.836-2m14.836 2H15"></path></svg>
               Sync Tenants
             </button>
+            <button id="reloadDataBtn" class="ribbon-btn" title="Fetch the latest billing records from Google Sheets">
+              <svg class="text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M5.64 18.36A8 8 0 0018.36 5.64M18.36 18.36A8 8 0 005.64 5.64"></path></svg>
+              Reload Data
+            </button>
           </div>
           <span class="ribbon-label">Tenant Data</span>
         </div>
@@ -208,6 +212,17 @@
             </button>
           </div>
           <span class="ribbon-label">Print / Download</span>
+        </div>
+
+        <div class="ribbon-group">
+          <div class="ribbon-group-items">
+            <button id="toggleSingleBillPanelBtn" class="ribbon-btn" type="button" title="Expand Add Single Bill panel" aria-label="Expand Add Single Bill panel" aria-controls="addSingleBillPanel" aria-expanded="false">
+              <svg data-panel-collapse-icon class="text-blue-700 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1" stroke-width="2"></rect><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4v16m7-5-3-3 3-3"></path></svg>
+              <svg data-panel-expand-icon class="text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1" stroke-width="2"></rect><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4v16m3-11 3 3-3 3"></path></svg>
+              Add Single Bill
+            </button>
+          </div>
+          <span class="ribbon-label">Manual Entry</span>
         </div>
 
       </div>
@@ -277,7 +292,7 @@
   <div class="main-content w-full flex flex-col lg:flex-row gap-2 items-stretch flex-1 min-h-0">
     
     <!-- Left Panel: Add Single Bill -->
-    <div class="w-full lg:w-80 bg-white p-4 rounded-2xl shadow-xl border border-slate-200 flex flex-col h-full shrink-0">
+    <div id="addSingleBillPanel" class="hidden w-full lg:w-80 bg-white p-4 rounded-2xl shadow-xl border border-slate-200 flex flex-col h-full shrink-0">
       <h2 class="text-lg font-bold mb-2 text-slate-800 border-b pb-2 shrink-0 flex items-center gap-2">
         <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
         Add Single Bill
@@ -512,6 +527,6 @@
   <div id="printReport"></div>
 
   <!-- Custom JS -->
-  <script src="script.js"></script>
+  <script src="script.js?v=20261110-2"></script>
 </body>
 </html>

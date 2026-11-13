@@ -1,5 +1,5 @@
 // ================= CONFIGURATION =================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz_mEnxHFDApvKuuzLT1-Qzi1hfHHyhZOmtfH0KLDLACvfS_y_V9dyIVM85SgWUrIMN/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztTYjr-sF5aKct--E-gWTByTS3d9YYJzKMxea2ltMej4S9shsjereE8Zrb_-s1tVyZ/exec';
 const ROOT_FOLDER_ID = '1SLd83WomxtEH3UPuzo3GpSBbUwiaWPHE';
 const TENANT_SPREADSHEET_ID = '1eQUsnIRkXBqohI_6F-oV95bKZAn75lilbkx4KEqd4dw';
 
@@ -40,6 +40,22 @@ let sortDirection = 'asc';
 const tabs = document.querySelectorAll('.office-tab');
 const contents = document.querySelectorAll('.ribbon-content');
 
+const toggleSingleBillPanelBtn = document.getElementById('toggleSingleBillPanelBtn');
+const singleBillPanel = document.getElementById('addSingleBillPanel');
+
+toggleSingleBillPanelBtn.addEventListener('click', () => {
+  const isExpanded = toggleSingleBillPanelBtn.getAttribute('aria-expanded') === 'true';
+  const expanded = !isExpanded;
+  const actionLabel = `${expanded ? 'Collapse' : 'Expand'} Add Single Bill panel`;
+
+  singleBillPanel.classList.toggle('hidden', !expanded);
+  toggleSingleBillPanelBtn.setAttribute('aria-expanded', String(expanded));
+  toggleSingleBillPanelBtn.setAttribute('aria-label', actionLabel);
+  toggleSingleBillPanelBtn.title = actionLabel;
+  toggleSingleBillPanelBtn.querySelector('[data-panel-collapse-icon]').classList.toggle('hidden', !expanded);
+  toggleSingleBillPanelBtn.querySelector('[data-panel-expand-icon]').classList.toggle('hidden', expanded);
+});
+
 tabs.forEach(tab => {
   tab.addEventListener('click', () => {
     tabs.forEach(t => t.classList.remove('active'));
@@ -49,10 +65,15 @@ tabs.forEach(tab => {
   });
 });
 
-async function initDatabase() {
+async function initDatabase(preserveView = false) {
+  const previousTab = activeTab;
+  const previousSearch = document.getElementById('searchInput').value;
+  const previousStatus = document.getElementById('statusFilter').value;
   document.getElementById('loadingOverlay').classList.remove('hidden');
   document.getElementById('loadingOverlay').classList.add('flex');
-  document.getElementById('loadingText').textContent = "Loading Data from Google Sheets...";
+  document.getElementById('loadingText').textContent = preserveView
+    ? 'Refreshing Data from Google Sheets...'
+    : 'Loading Data from Google Sheets...';
 
   try {
     const response = await fetch(APPS_SCRIPT_URL, {
@@ -86,7 +107,11 @@ async function initDatabase() {
         if (!appData[prop]) appData[prop] = [];
       });
 
-      activeTab = PROPERTIES[0];
+      activeTab = preserveView && PROPERTIES.includes(previousTab) ? previousTab : PROPERTIES[0];
+      if (preserveView) {
+        document.getElementById('searchInput').value = previousSearch;
+        document.getElementById('statusFilter').value = previousStatus;
+      }
       renderTabs();
       renderSpreadsheet();
     } else {
@@ -100,6 +125,16 @@ async function initDatabase() {
     document.getElementById('loadingOverlay').classList.remove('flex');
   }
 }
+
+document.getElementById('reloadDataBtn').addEventListener('click', async () => {
+  const button = document.getElementById('reloadDataBtn');
+  button.disabled = true;
+  try {
+    await initDatabase(true);
+  } finally {
+    button.disabled = false;
+  }
+});
 
 async function syncToDatabase(bill, tabName, actionType) {
   try {
@@ -133,7 +168,32 @@ async function syncToDatabase(bill, tabName, actionType) {
     return await res.json();
   } catch (e) {
     console.error(e);
-    return { success: false };
+    return { success: false, error: e.message || String(e) };
+  }
+}
+
+async function requireRemarksSave(result, remarksChanged, bill, tabName) {
+  if (!result || !result.success) {
+    throw new Error((result && result.error) || 'The spreadsheet rejected the save.');
+  }
+  if (!remarksChanged || result.remarksSaved === true) return;
+
+  const response = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    cache: 'no-store',
+    body: JSON.stringify({ action: 'load' })
+  });
+  if (!response.ok) {
+    throw new Error(`Save succeeded, but Remarks could not be verified (HTTP ${response.status}).`);
+  }
+
+  const loadResult = await response.json();
+  const records = loadResult.success && loadResult.data && loadResult.data[tabName];
+  const savedBill = Array.isArray(records)
+    ? records.find(record => record.tenantName === bill.tenantName && String(record.unitNo || '') === String(bill.unitNo || ''))
+    : null;
+  if (!savedBill || String(savedBill.remarks || '') !== String(bill.remarks || '')) {
+    throw new Error('The save endpoint did not return the updated Remarks value. Confirm the deployed Apps Script writes and loads the REMARKS column.');
   }
 }
 
@@ -675,6 +735,7 @@ document.getElementById('spreadsheetBody').addEventListener('change', async even
         }
         throw new Error(saveResult.error || 'Could not save the edit. The original row was restored.');
       }
+      await requireRemarksSave(saveResult, field === 'remarks', updatedBill, targetTab);
 
       appData[originalTab].splice(billIndex, 1);
       if (!appData[targetTab]) appData[targetTab] = [];
@@ -683,7 +744,7 @@ document.getElementById('spreadsheetBody').addEventListener('change', async even
       renderTabs();
     } else {
       const saveResult = await syncToDatabase(updatedBill, originalTab, 'update');
-      if (!saveResult.success) throw new Error(saveResult.error || 'Could not save the edit.');
+      await requireRemarksSave(saveResult, field === 'remarks', updatedBill, originalTab);
       appData[originalTab][billIndex] = updatedBill;
     }
     renderSpreadsheet();
@@ -784,6 +845,9 @@ window.saveBillEdit = async function() {
   const total = consumption * rate;
 
   const targetTab = property;
+  const remarksChanged = isAddMode
+    ? Boolean(remarks)
+    : remarks !== String(currentEditingBill && currentEditingBill.remarks || '');
 
   document.getElementById('loadingOverlay').classList.remove('hidden');
   document.getElementById('loadingOverlay').classList.add('flex');
@@ -800,8 +864,9 @@ window.saveBillEdit = async function() {
         property, unitNo, prevReading, presentReading, consumption, rate, balance, penalty, total,
         billingDate, status, pdfUrl: '', dateSent, remarks
       };
+      const saveResult = await syncToDatabase(newBill, targetTab, 'save');
+      await requireRemarksSave(saveResult, remarksChanged, newBill, targetTab);
       appData[targetTab].push(newBill);
-      await syncToDatabase(newBill, targetTab, 'save');
       activeTab = targetTab;
     } else {
       if (!currentEditingBill) throw new Error("No bill selected.");
@@ -832,8 +897,9 @@ window.saveBillEdit = async function() {
         if (appData[targetTab].some(b => b.tenantName === name)) {
           throw new Error(`A bill with this tenant name already exists in "${targetTab}".`);
         }
+        const saveResult = await syncToDatabase(updated, targetTab, 'save');
+        await requireRemarksSave(saveResult, remarksChanged, updated, targetTab);
         appData[targetTab].push(updated);
-        await syncToDatabase(updated, targetTab, 'save');
         activeTab = targetTab;
       } else {
         if (name !== originalName) {
@@ -842,12 +908,14 @@ window.saveBillEdit = async function() {
             body: JSON.stringify({ action: 'delete', tabName: originalTab, tenantName: originalName })
           });
           const idx = appData[originalTab].findIndex(b => b.tenantName === originalName);
+          const saveResult = await syncToDatabase(updated, targetTab, 'save');
+          await requireRemarksSave(saveResult, remarksChanged, updated, targetTab);
           if (idx !== -1) appData[originalTab][idx] = updated;
-          await syncToDatabase(updated, targetTab, 'save');
         } else {
           const idx = appData[originalTab].findIndex(b => b.tenantName === originalName);
+          const saveResult = await syncToDatabase(updated, targetTab, 'update');
+          await requireRemarksSave(saveResult, remarksChanged, updated, targetTab);
           if (idx !== -1) appData[originalTab][idx] = updated;
-          await syncToDatabase(updated, targetTab, 'update');
         }
       }
     }
@@ -1241,7 +1309,14 @@ document.getElementById('addBillFormBtn').addEventListener('click', async () => 
   renderTabs();
   renderSpreadsheet();
 
-  await syncToDatabase(newBill, targetTab, 'save');
+  const saveResult = await syncToDatabase(newBill, targetTab, 'save');
+  try {
+    await requireRemarksSave(saveResult, Boolean(newBill.remarks), newBill, targetTab);
+  } catch (error) {
+    appData[targetTab] = appData[targetTab].filter(bill => bill !== newBill);
+    renderSpreadsheet();
+    alert(`Could not save this bill: ${error.message}`);
+  }
 });
 
 [

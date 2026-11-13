@@ -101,9 +101,9 @@ function handleLoad() {
         tenantName:     findColumn(headers, ['TENANT NAME','NAME','TENANT']),
         unitNo:         findColumn(headers, ['UNIT NO.','UNIT NO','UNIT','UNIT NUMBER']),
         prevReading:    findColumn(headers, ['PREVIOUS','METER READING PREVIOUS','PREV']),
-        presentReading: findColumn(headers, ['CURRENT','METER PRESENT READING','PRESENT']),
+        presentReading: findColumn(headers, ['CURRENT','CURRENT READING','METER PRESENT READING','PRESENT','PRESENT READING','METER PRESENT','UPON']),
         billingDate:    findColumn(headers, ['BILLING DATE','DATE']),
-        consumption:    findColumn(headers, ['CONSUMPTION','CONSUMPTION (CU.M)','CU.M']),
+        consumption:    findColumn(headers, ['CONSUMPTION','CONSUMPTION (CU.M)','CONSUMPTION CU.M','CONSUMPTION (CU M)','CONSUMPTION CU M','CU.M','CU M']),
         rate:           findColumn(headers, ['RATE','AMOUNT PER CUBIC METER','RATE PER CU.M']),
         total:          findColumn(headers, ['TOTAL','TOTAL AMOUNT']),
         status:         findColumn(headers, ['STATUS']),
@@ -164,6 +164,7 @@ function handleSave(data) {
       sheet.appendRow(['TENANT NAME', 'UNIT NO.', 'PREVIOUS', 'CURRENT', 'BILLING DATE', 'CONSUMPTION', 'RATE', 'TOTAL', 'STATUS', 'PDF', 'DATE SENT', 'REMARKS']);
     }
     ensureRemarksColumn(sheet);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
     const rateVal = parseFloat(data.rate);
     const rate = isNaN(rateVal) ? 0 : rateVal;
@@ -171,21 +172,28 @@ function handleSave(data) {
     const balance = Number(data.balance) || 0;
     const total = (consumption * rate) + balance;
 
-    sheet.appendRow([
-      data.tenantName || '',
-      data.unitNo || '',
-      data.prevReading || 0,
-      data.presentReading || 0,
-      data.billingDate || '',
-      consumption,
-      rate,
-      total,
-      data.status || 'Pending',
-      data.pdfUrl || '',
-      data.dateSent || '',
-      data.remarks || ''
-    ]);
-    return createResponse(true, { message: 'Saved' }, null);
+    const row = buildBillRow(headers, {
+      tenantName: data.tenantName || '',
+      unitNo: data.unitNo || '',
+      prevReading: data.prevReading || 0,
+      presentReading: data.presentReading || 0,
+      billingDate: data.billingDate || '',
+      consumption: consumption,
+      rate: rate,
+      balance: balance,
+      total: total,
+      status: data.status || 'Pending',
+      pdfUrl: data.pdfUrl || '',
+      dateSent: data.dateSent || '',
+      remarks: data.remarks || ''
+    });
+    sheet.appendRow(row);
+    const savedRow = sheet.getLastRow();
+    const remarksResult = writeRemarks(sheet, savedRow, data.remarks);
+    if (!remarksResult.success) {
+      return createResponse(false, null, 'Bill saved, but Remarks could not be verified: ' + remarksResult.error);
+    }
+    return createResponse(true, { message: 'Saved', remarksSaved: true }, null);
   } catch (error) {
     return createResponse(false, null, 'Save error: ' + error.toString());
   }
@@ -215,9 +223,9 @@ function handleUpdate(data) {
       tenantName:     findColumn(headers, ['TENANT NAME','NAME','TENANT']),
       unitNo:         findColumn(headers, ['UNIT NO.','UNIT NO','UNIT','UNIT NUMBER']),
       prevReading:    findColumn(headers, ['PREVIOUS','METER READING PREVIOUS','PREV']),
-      presentReading: findColumn(headers, ['CURRENT','METER PRESENT READING','PRESENT']),
+      presentReading: findColumn(headers, ['CURRENT','CURRENT READING','METER PRESENT READING','PRESENT','PRESENT READING','METER PRESENT','UPON']),
       billingDate:    findColumn(headers, ['BILLING DATE','DATE']),
-      consumption:    findColumn(headers, ['CONSUMPTION','CONSUMPTION (CU.M)','CU.M']),
+      consumption:    findColumn(headers, ['CONSUMPTION','CONSUMPTION (CU.M)','CONSUMPTION CU.M','CONSUMPTION (CU M)','CONSUMPTION CU M','CU.M','CU M']),
       rate:           findColumn(headers, ['RATE','AMOUNT PER CUBIC METER','RATE PER CU.M']),
       total:          findColumn(headers, ['TOTAL','TOTAL AMOUNT']),
       status:         findColumn(headers, ['STATUS']),
@@ -225,8 +233,6 @@ function handleUpdate(data) {
       dateSent:       findColumn(headers, ['DATE SENT','SENT DATE']),
       balance:        findColumn(headers, ['BALANCE'])
     };
-    col.remarks = ensureRemarksColumn(sheet);
-
     const rateVal = parseFloat(data.rate);
     const rate = isNaN(rateVal) ? 0 : rateVal;
     const consumption = Number(data.consumption) || 0;
@@ -244,9 +250,13 @@ function handleUpdate(data) {
     if (col.status >= 0) sheet.getRange(rowIdx, col.status + 1).setValue(data.status);
     if (col.pdfUrl >= 0) sheet.getRange(rowIdx, col.pdfUrl + 1).setValue(data.pdfUrl || '');
     if (col.dateSent >= 0) sheet.getRange(rowIdx, col.dateSent + 1).setValue(data.dateSent || '');
-    if (col.remarks >= 0) sheet.getRange(rowIdx, col.remarks + 1).setValue(data.remarks || '');
+    const remarksResult = writeRemarks(sheet, rowIdx, data.remarks);
+    if (!remarksResult.success) {
+      return createResponse(false, null, 'Bill updated, but Remarks could not be verified: ' + remarksResult.error);
+    }
+    if (col.balance >= 0) sheet.getRange(rowIdx, col.balance + 1).setValue(balance);
 
-    return createResponse(true, { message: 'Updated' }, null);
+    return createResponse(true, { message: 'Updated', remarksSaved: true }, null);
   } catch (error) {
     return createResponse(false, null, 'Update error: ' + error.toString());
   }
@@ -310,6 +320,31 @@ function findColumn(headers, names) {
   return -1;
 }
 
+function buildBillRow(headers, bill) {
+  const row = Array(headers.length).fill('');
+  const fields = [
+    { names: ['TENANT NAME', 'NAME', 'TENANT'], value: bill.tenantName },
+    { names: ['UNIT NO.', 'UNIT NO', 'UNIT', 'UNIT NUMBER'], value: bill.unitNo },
+    { names: ['PREVIOUS', 'METER READING PREVIOUS', 'PREV'], value: bill.prevReading },
+    { names: ['CURRENT', 'CURRENT READING', 'METER PRESENT READING', 'PRESENT', 'PRESENT READING', 'METER PRESENT', 'UPON'], value: bill.presentReading },
+    { names: ['BILLING DATE', 'DATE'], value: bill.billingDate },
+    { names: ['CONSUMPTION', 'CONSUMPTION (CU.M)', 'CONSUMPTION CU.M', 'CONSUMPTION (CU M)', 'CONSUMPTION CU M', 'CU.M', 'CU M'], value: bill.consumption },
+    { names: ['RATE', 'AMOUNT PER CUBIC METER', 'RATE PER CU.M'], value: bill.rate },
+    { names: ['BALANCE'], value: bill.balance },
+    { names: ['TOTAL', 'TOTAL AMOUNT'], value: bill.total },
+    { names: ['STATUS'], value: bill.status },
+    { names: ['PDF', 'PDF URL', 'URL'], value: bill.pdfUrl },
+    { names: ['DATE SENT', 'SENT DATE'], value: bill.dateSent },
+    { names: ['REMARKS', 'REMARK'], value: bill.remarks }
+  ];
+
+  fields.forEach(field => {
+    const column = findColumn(headers, field.names);
+    if (column >= 0) row[column] = field.value;
+  });
+  return row;
+}
+
 function ensureRemarksColumn(sheet) {
   const lastColumn = sheet.getLastColumn();
   if (lastColumn === 0) return -1;
@@ -320,6 +355,23 @@ function ensureRemarksColumn(sheet) {
 
   sheet.getRange(1, lastColumn + 1).setValue('REMARKS');
   return lastColumn;
+}
+
+function writeRemarks(sheet, rowNumber, remarks) {
+  const remarksColumn = ensureRemarksColumn(sheet);
+  if (remarksColumn < 0) {
+    return { success: false, error: 'Could not find or create the REMARKS header.' };
+  }
+
+  const value = remarks == null ? '' : String(remarks);
+  const remarksCell = sheet.getRange(rowNumber, remarksColumn + 1);
+  remarksCell.setValue(value);
+  SpreadsheetApp.flush();
+
+  if (String(remarksCell.getValue() == null ? '' : remarksCell.getValue()) !== value) {
+    return { success: false, error: 'The value in the REMARKS cell did not match the submitted value.' };
+  }
+  return { success: true };
 }
 
 function formatDateCell(v) {
